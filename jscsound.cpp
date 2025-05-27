@@ -121,7 +121,7 @@ Napi::Number GetNchnls(const Napi::CallbackInfo &info) {
 
 Napi::Number GetScoreTime(const Napi::CallbackInfo &info) {
     Napi::Env env = info.Env();
-    int value = csound_.GetScoreTime();
+    double value = csound_.GetScoreTime();
     return Napi::Number::New(env, value);
 }
 

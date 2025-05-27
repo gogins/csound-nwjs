@@ -136,6 +136,18 @@ NODE_PATH=/usr/local/lib
    change the library and include directories configuration to suit your 
    own environment. To actually build execute:
 ```
-cmake.js rebuild
+cmake-js rebuild
 ```
+
+## Release Notes
+
+### [v0.3.2](https://github.com/gogins/csound-wasm/commits/v0.3.2)
+
+ - Updated Csound to version 6.19.0.
+
+ - Improved the WebAssembly builds of Csound and CsoundAC to support 
+   running either in NW.js with native Csound, or in Web browsers with 
+   Csound for WebAssembly. This makes it possible, e.g., to compose pieces 
+   using Strudel with native Csound, VST plugins, access to the local 
+   filesystem, and so on.
 
