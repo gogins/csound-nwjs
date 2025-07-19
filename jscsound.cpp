@@ -28,17 +28,22 @@
 #include <vector>
 
 static csound::CsoundProducer csound_;
-/// static Napi::FunctionReference persistent_message_callback;
-static concurrent_queue<char *> csound_messages_queue;
-static uv_async_t uv_csound_message_async;
 static napi_threadsafe_function message_tsfn = nullptr;
 
 static void message_(const char *text) {
     if (message_tsfn == nullptr) {
+        fprintf(stderr, "csound.node: null message_tsfn.\n");
         return;
-    } 
-    csound_messages_queue.push(strdup(text));
-    uv_async_send(&uv_csound_message_async);
+    }
+    fprintf(stderr, "%s", text);
+    napi_status status = napi_call_threadsafe_function(
+        message_tsfn,
+        strdup(text),
+        napi_tsfn_nonblocking
+    );
+    if (status != napi_ok) {
+        fprintf(stderr, "csound.node: message_tsfn call failed: %d\n", status);
+    }
 }
 
 /**
@@ -223,6 +228,7 @@ void SetDoGitCommit(const Napi::CallbackInfo &info) {
 }
 
 void SetMessageCallback(const Napi::CallbackInfo& info) {
+    fprintf(stderr, "csound.node: SetMessageCallback...\n");
     Napi::Env env = info.Env();
     Napi::Function jsCallback = info[0].As<Napi::Function>();
     napi_value fn = jsCallback;
@@ -241,7 +247,6 @@ void SetMessageCallback(const Napi::CallbackInfo& info) {
         &message_tsfn
     );
 }
-
 
 void SetMetadata(const Napi::CallbackInfo &info) {
     std::string tag = info[0].As<Napi::String>().Utf8Value();
@@ -288,27 +293,15 @@ void Stop(const Napi::CallbackInfo &info) {
     csound_.Join();
 }
 
-void uv_csound_message_callback(uv_async_t *handle) {
-    if (message_tsfn == nullptr) {
-        return;
-    }
-    char *message = nullptr;
-    while (csound_messages_queue.try_pop(message)) {
-        napi_call_threadsafe_function(message_tsfn, message, napi_tsfn_blocking);
-    }
-}
-
 void on_exit() {
     if (message_tsfn != nullptr) {
         napi_release_threadsafe_function(message_tsfn, napi_tsfn_release);
         message_tsfn = nullptr;
     }
-    uv_close((uv_handle_t *)&uv_csound_message_async, 0);
 }
 
 Napi::Object Initialize(Napi::Env env, Napi::Object exports) {
     std::fprintf(stderr, "Initializing csound.node...\n");
-    uv_async_init(uv_default_loop(), &uv_csound_message_async, uv_csound_message_callback);
     std::atexit(&on_exit);  
     // Wormy logic...
     csoundSetDefaultMessageCallback(csoundMessageCallback_);
