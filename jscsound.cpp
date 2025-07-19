@@ -24,7 +24,6 @@
 #include <memory>
 #include <napi.h>
 #include <string>
-#include <uv.h>
 #include <vector>
 
 static csound::CsoundProducer csound_;
@@ -50,7 +49,7 @@ static void message_(const char *text) {
  * As this will often be called from Csound's native performance thread, 
  * it is not safe to call from here back into JavaScript. Hence, we enqueue 
  * messages to be dequeued and dispatched from the main JavaScript thread.
- * Dispatching is implemented using libuv.
+ * Dispatching is implemented using napi_call_threadsafe_function.
  */
 static void csoundMessageCallback_(CSOUND *csound__, int attr, const char *format, va_list valist)
 {
@@ -260,9 +259,6 @@ void SetOption(const Napi::CallbackInfo &info) {
 }
 
 void SetOutput(const Napi::CallbackInfo &info) {
-    // std::string filename = info[0].As<Napi::String>().Utf8Value();
-    // std::string type = info[0].As<Napi::String>().Utf8Value();
-    // std::string format = info[0].As<Napi::String>().Utf8Value();
     std::string filename = info[0].As<Napi::String>().Utf8Value();
     std::string type = info[1].As<Napi::String>().Utf8Value();
     std::string format = info[2].As<Napi::String>().Utf8Value();
@@ -303,7 +299,6 @@ void on_exit() {
 Napi::Object Initialize(Napi::Env env, Napi::Object exports) {
     std::fprintf(stderr, "Initializing csound.node...\n");
     std::atexit(&on_exit);  
-    // Wormy logic...
     csoundSetDefaultMessageCallback(csoundMessageCallback_);
     csound_.SetMessageCallback(csoundMessageCallback_);
     exports.Set(Napi::String::New(env, "Cleanup"),
