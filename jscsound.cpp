@@ -28,14 +28,22 @@
 #include <vector>
 
 static csound::CsoundProducer csound_;
-static Napi::FunctionReference persistent_message_callback;
-static concurrent_queue<char *> csound_messages_queue;
-static uv_async_t uv_csound_message_async;
+static napi_threadsafe_function message_tsfn = nullptr;
 
 static void message_(const char *text) {
-    //std::fprintf(stderr, text, "");
-    csound_messages_queue.push(strdup(text));
-    uv_async_send(&uv_csound_message_async);
+    if (message_tsfn == nullptr) {
+        fprintf(stderr, "csound.node: null message_tsfn.\n");
+        return;
+    }
+    fprintf(stderr, "%s", text);
+    napi_status status = napi_call_threadsafe_function(
+        message_tsfn,
+        strdup(text),
+        napi_tsfn_nonblocking
+    );
+    if (status != napi_ok) {
+        fprintf(stderr, "csound.node: message_tsfn call failed: %d\n", status);
+    }
 }
 
 /**
@@ -219,10 +227,25 @@ void SetDoGitCommit(const Napi::CallbackInfo &info) {
     csound_.SetDoGitCommit(value);
 }
 
-void SetMessageCallback(const Napi::CallbackInfo &info) {
-    Napi::Function csound_message_callback = info[0].As<Napi::Function>();
-    persistent_message_callback = Napi::Persistent(csound_message_callback);
-    persistent_message_callback.SuppressDestruct();
+void SetMessageCallback(const Napi::CallbackInfo& info) {
+    fprintf(stderr, "csound.node: SetMessageCallback...\n");
+    Napi::Env env = info.Env();
+    Napi::Function jsCallback = info[0].As<Napi::Function>();
+    napi_value fn = jsCallback;
+    napi_create_threadsafe_function(
+        env, fn, nullptr, 
+        Napi::String::New(env, "csoundMessageCallback"), 
+        0, 1, nullptr, nullptr, nullptr, 
+        [](napi_env env, napi_value js_cb, void* context, void* data) {
+            // This runs on the JS thread!
+            char* message = static_cast<char*>(data);
+            napi_value argv[1];
+            napi_create_string_utf8(env, message, NAPI_AUTO_LENGTH, &argv[0]);
+            napi_call_function(env, nullptr, js_cb, 1, argv, nullptr);
+            std::free(message);
+        }, 
+        &message_tsfn
+    );
 }
 
 void SetMetadata(const Napi::CallbackInfo &info) {
@@ -237,9 +260,12 @@ void SetOption(const Napi::CallbackInfo &info) {
 }
 
 void SetOutput(const Napi::CallbackInfo &info) {
+    // std::string filename = info[0].As<Napi::String>().Utf8Value();
+    // std::string type = info[0].As<Napi::String>().Utf8Value();
+    // std::string format = info[0].As<Napi::String>().Utf8Value();
     std::string filename = info[0].As<Napi::String>().Utf8Value();
-    std::string type = info[0].As<Napi::String>().Utf8Value();
-    std::string format = info[0].As<Napi::String>().Utf8Value();
+    std::string type = info[1].As<Napi::String>().Utf8Value();
+    std::string format = info[2].As<Napi::String>().Utf8Value();
     csound_.SetOutput(filename.c_str(), type.c_str(), format.c_str());
 }
 
@@ -267,27 +293,15 @@ void Stop(const Napi::CallbackInfo &info) {
     csound_.Join();
 }
 
-void uv_csound_message_callback(uv_async_t *handle)
-{
-    char *message = nullptr;
-    while (csound_messages_queue.try_pop(message)) {
-        Napi::Env env = persistent_message_callback.Env();
-        Napi::HandleScope handle_scope(env);
-        std::vector<napi_value> args = {Napi::String::New(env, message)};
-        persistent_message_callback.Call(args);
-        std::free(message);
+void on_exit() {
+    if (message_tsfn != nullptr) {
+        napi_release_threadsafe_function(message_tsfn, napi_tsfn_release);
+        message_tsfn = nullptr;
     }
-}
-
-void on_exit()
-{
-    message_("Info: jscsound: on_exit\n");
-    uv_close((uv_handle_t *)&uv_csound_message_async, 0);
 }
 
 Napi::Object Initialize(Napi::Env env, Napi::Object exports) {
     std::fprintf(stderr, "Initializing csound.node...\n");
-    uv_async_init(uv_default_loop(), &uv_csound_message_async, uv_csound_message_callback);
     std::atexit(&on_exit);  
     // Wormy logic...
     csoundSetDefaultMessageCallback(csoundMessageCallback_);
@@ -402,8 +416,8 @@ Napi::Object Initialize(Napi::Env env, Napi::Object exports) {
                 Napi::Function::New(env, SetOutput));
     exports.Set(Napi::String::New(env, "setOutput"),
                 Napi::Function::New(env, SetOutput));
-    exports.Set(Napi::String::New(env, "SetScorePendingOutput"),
-                Napi::Function::New(env, SetScorePending));
+    // exports.Set(Napi::String::New(env, "SetScorePendingOutput"),
+    //             Napi::Function::New(env, SetScorePending));
     exports.Set(Napi::String::New(env, "setScorePending"),
                 Napi::Function::New(env, SetScorePending));
     exports.Set(Napi::String::New(env, "Start"),
