@@ -24,32 +24,25 @@
 #include <memory>
 #include <napi.h>
 #include <string>
+#include <uv.h>
 #include <vector>
 
 static csound::CsoundProducer csound_;
-static napi_threadsafe_function message_tsfn = nullptr;
+static Napi::FunctionReference persistent_message_callback;
+static concurrent_queue<char *> csound_messages_queue;
+static uv_async_t uv_csound_message_async;
 
 static void message_(const char *text) {
-    if (message_tsfn == nullptr) {
-        fprintf(stderr, "csound.node: null message_tsfn.\n");
-        return;
-    }
-    fprintf(stderr, "%s", text);
-    napi_status status = napi_call_threadsafe_function(
-        message_tsfn,
-        strdup(text),
-        napi_tsfn_nonblocking
-    );
-    if (status != napi_ok) {
-        fprintf(stderr, "csound.node: message_tsfn call failed: %d\n", status);
-    }
+    //std::fprintf(stderr, text, "");
+    csound_messages_queue.push(strdup(text));
+    uv_async_send(&uv_csound_message_async);
 }
 
 /**
  * As this will often be called from Csound's native performance thread, 
  * it is not safe to call from here back into JavaScript. Hence, we enqueue 
  * messages to be dequeued and dispatched from the main JavaScript thread.
- * Dispatching is implemented using napi_call_threadsafe_function.
+ * Dispatching is implemented using libuv.
  */
 static void csoundMessageCallback_(CSOUND *csound__, int attr, const char *format, va_list valist)
 {
@@ -226,25 +219,10 @@ void SetDoGitCommit(const Napi::CallbackInfo &info) {
     csound_.SetDoGitCommit(value);
 }
 
-void SetMessageCallback(const Napi::CallbackInfo& info) {
-    fprintf(stderr, "csound.node: SetMessageCallback...\n");
-    Napi::Env env = info.Env();
-    Napi::Function jsCallback = info[0].As<Napi::Function>();
-    napi_value fn = jsCallback;
-    napi_create_threadsafe_function(
-        env, fn, nullptr, 
-        Napi::String::New(env, "csoundMessageCallback"), 
-        0, 1, nullptr, nullptr, nullptr, 
-        [](napi_env env, napi_value js_cb, void* context, void* data) {
-            // This runs on the JS thread!
-            char* message = static_cast<char*>(data);
-            napi_value argv[1];
-            napi_create_string_utf8(env, message, NAPI_AUTO_LENGTH, &argv[0]);
-            napi_call_function(env, nullptr, js_cb, 1, argv, nullptr);
-            std::free(message);
-        }, 
-        &message_tsfn
-    );
+void SetMessageCallback(const Napi::CallbackInfo &info) {
+    Napi::Function csound_message_callback = info[0].As<Napi::Function>();
+    persistent_message_callback = Napi::Persistent(csound_message_callback);
+    persistent_message_callback.SuppressDestruct();
 }
 
 void SetMetadata(const Napi::CallbackInfo &info) {
@@ -289,16 +267,29 @@ void Stop(const Napi::CallbackInfo &info) {
     csound_.Join();
 }
 
-void on_exit() {
-    if (message_tsfn != nullptr) {
-        napi_release_threadsafe_function(message_tsfn, napi_tsfn_release);
-        message_tsfn = nullptr;
+void uv_csound_message_callback(uv_async_t *handle)
+{
+    char *message = nullptr;
+    while (csound_messages_queue.try_pop(message)) {
+        Napi::Env env = persistent_message_callback.Env();
+        Napi::HandleScope handle_scope(env);
+        std::vector<napi_value> args = {Napi::String::New(env, message)};
+        persistent_message_callback.Call(args);
+        std::free(message);
     }
+}
+
+void on_exit()
+{
+    message_("Info: jscsound: on_exit\n");
+    uv_close((uv_handle_t *)&uv_csound_message_async, 0);
 }
 
 Napi::Object Initialize(Napi::Env env, Napi::Object exports) {
     std::fprintf(stderr, "Initializing csound.node...\n");
+    uv_async_init(uv_default_loop(), &uv_csound_message_async, uv_csound_message_callback);
     std::atexit(&on_exit);  
+    // Wormy logic...
     csoundSetDefaultMessageCallback(csoundMessageCallback_);
     csound_.SetMessageCallback(csoundMessageCallback_);
     exports.Set(Napi::String::New(env, "Cleanup"),
@@ -411,8 +402,8 @@ Napi::Object Initialize(Napi::Env env, Napi::Object exports) {
                 Napi::Function::New(env, SetOutput));
     exports.Set(Napi::String::New(env, "setOutput"),
                 Napi::Function::New(env, SetOutput));
-    // exports.Set(Napi::String::New(env, "SetScorePendingOutput"),
-    //             Napi::Function::New(env, SetScorePending));
+    exports.Set(Napi::String::New(env, "SetScorePendingOutput"),
+                Napi::Function::New(env, SetScorePending));
     exports.Set(Napi::String::New(env, "setScorePending"),
                 Napi::Function::New(env, SetScorePending));
     exports.Set(Napi::String::New(env, "Start"),
