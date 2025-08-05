@@ -131,6 +131,14 @@ Napi::Number GetSr(const Napi::CallbackInfo &info) {
     return Napi::Number::New(env, value);
 }
 
+Napi::String GetStringChannel(const Napi::CallbackInfo &info) {
+    Napi::Env env = info.Env();
+    std::string name = info[0].As<Napi::String>().Utf8Value();
+    char buffer[0x2000];
+    csound_.GetStringChannel(name.c_str(), buffer);
+    return Napi::String::New(env, buffer);
+}
+
 Napi::Number GetVersion(const Napi::CallbackInfo &info) {
     Napi::Env env = info.Env();
     int value = csound_.GetVersion();
@@ -152,6 +160,19 @@ Napi::Boolean IsScorePending(const Napi::CallbackInfo &info) {
     Napi::Env env = info.Env();
     bool value = csound_.IsScorePending();
     return Napi::Boolean::New(env, value);
+}
+
+// PUBLIC int 	csoundKillInstance (CSOUND *csound, MYFLT instr, char *instrName, int mode, int allow_release)
+Napi::Number KillInstance(const Napi::CallbackInfo &info) {
+    message_("Info: jscsound: KillInstance.\n");
+    Napi::Env env = info.Env();
+    double instr = info[0].As<Napi::Number>().DoubleValue();
+    std::string instr_name = info[1].As<Napi::String>().Utf8Value();
+    int mode = info[2].As<Napi::Number>().Int32Value();
+    int allow_release = info[3].As<Napi::Number>().Int32Value();
+    auto csound = csound_.GetCsound();
+    int result = csoundKillInstance(csound, instr, const_cast<char *>(instr_name.c_str()), mode, allow_release);
+    return Napi::Number::New(env, result);
 }
 
 void Message(const Napi::CallbackInfo &info) {
@@ -248,6 +269,12 @@ void SetScorePending(const Napi::CallbackInfo &info) {
     csound_.SetScorePending(value);
 }
 
+void SetStringChannel(const Napi::CallbackInfo &info) {
+    std::string name = info[0].As<Napi::String>().Utf8Value();
+    auto value = info[1].As<Napi::String>().Utf8Value();
+    csound_.SetStringChannel(name.c_str(), const_cast<char *>(value.c_str()));
+}
+
 Napi::Number Start(const Napi::CallbackInfo &info) {
     message_("Info: jscsound: Start.\n");
     Napi::Env env = info.Env();
@@ -330,6 +357,8 @@ Napi::Object Initialize(Napi::Env env, Napi::Object exports) {
                 Napi::Function::New(env, GetNchnls));
     exports.Set(Napi::String::New(env, "GetScoreTime"),
                 Napi::Function::New(env, GetScoreTime));
+    exports.Set(Napi::String::New(env, "getStringChannel"),
+                Napi::Function::New(env, GetStringChannel));
     exports.Set(Napi::String::New(env, "getScoreTime"),
                 Napi::Function::New(env, GetScoreTime));
     exports.Set(Napi::String::New(env, "GetVersion"),
@@ -350,6 +379,10 @@ Napi::Object Initialize(Napi::Env env, Napi::Object exports) {
                 Napi::Function::New(env, IsScorePending));
     exports.Set(Napi::String::New(env, "isScorePending"),
                 Napi::Function::New(env, IsScorePending));
+    exports.Set(Napi::String::New(env, "KillInstance"),
+                Napi::Function::New(env, KillInstance));
+    exports.Set(Napi::String::New(env, "killInstance"),
+                Napi::Function::New(env, KillInstance));
     exports.Set(Napi::String::New(env, "Message"),
                 Napi::Function::New(env, Message));
     exports.Set(Napi::String::New(env, "message"),
@@ -406,6 +439,10 @@ Napi::Object Initialize(Napi::Env env, Napi::Object exports) {
                 Napi::Function::New(env, SetScorePending));
     exports.Set(Napi::String::New(env, "setScorePending"),
                 Napi::Function::New(env, SetScorePending));
+    exports.Set(Napi::String::New(env, "setStringChannel"),
+                Napi::Function::New(env, SetStringChannel));
+    exports.Set(Napi::String::New(env, "SetStringChannel"),
+                Napi::Function::New(env, SetStringChannel));
     exports.Set(Napi::String::New(env, "Start"),
                 Napi::Function::New(env, Start));
     exports.Set(Napi::String::New(env, "start"),
