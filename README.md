@@ -1,5 +1,5 @@
 # csound.node
-![GitHub All Releases (total)](https://img.shields.io/github/downloads/gogins/csound-extended-node/total.svg)<br>
+![GitHub All Releases (total)](https://img.shields.io/github/downloads/gogins/csound-nwjs/total.svg)<br>
 
 Michael Gogins<br>
 https://github.com/gogins<br>
@@ -7,15 +7,15 @@ http://michaelgogins.tumblr.com
 
 ## License
 
-csound-extended-node is copyright (c) 2021 by Michael Gogins and 
+csound-nwjs is copyright (c) 2021 by Michael Gogins and 
 other contributors to the csound-node-extended repository.
 
-csound-extended-node is free software; you can redistribute it
+csound-nwjs is free software; you can redistribute it
 and/or modify them under the terms of the GNU Lesser General Public
 License as published by the Free Software Foundation; either
 version 2.1 of the License, or (at your option) any later version.
 
-csound-extended-node is distributed in the hope that it will be useful,
+csound-nwjs is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU Lesser General Public License for more details.
@@ -63,12 +63,18 @@ additional capabilities such as accessing the local filesystem, loading plugin
 opcodes, and running somewhat faster.
 
 Please log any bug reports or requests for enhancements at 
-https://github.com/gogins/csound-extended-node/issues.
+https://github.com/gogins/csound-nwjs/issues.
 
 ## Usage
 
 A composition that uses csound.node is a regular NW.js application. This is 
 rather different from a typical desktop application. 
+
+Install the SDK version of NW.js from [here](https://nwjs.io/). On macOS, you 
+will need to configure the app to pass the Gatekeeper. Open a terminal and 
+execute: 
+
+`xattr -dr com.apple.quarantine /Applications/nwjs.app`.
 
 Currently the following steps work on macOS, but similar steps would be taken 
 on other platforms. The build uses 
@@ -109,7 +115,7 @@ pieces, see Poustinia-v5c.
 
 ## Building `csound.node`
 
-csound-extended-node is built in the "npm way" but uses cmake.js rather than 
+csound-nwjs is built in the "npm way" but uses cmake.js rather than 
 node-gyp to compile the addon.
 
 1. Make a local clone of this repository.
