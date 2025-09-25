@@ -76,18 +76,12 @@ execute:
 
 `xattr -dr com.apple.quarantine /Applications/nwjs.app`.
 
-Currently the following steps work on macOS, but similar steps would be taken 
-on other platforms. The build uses 
-[nw-builder](https://github.com/nwutils/nw-builder).
-
 For a sample NW.js composition that you can use as a template for your own 
 pieces, see Poustinia-v5c.
 
-1. Create an application directory containing a `src` subdirectory and a 
-   `build` subdirectory. 
-2. Change to the `src` directory.
+1. Create an application directory.
 3. Create your piece as an .html file.
-4. Also in the `src` directory place any scripts, images, or other assets that 
+4. Also in the application directory place any scripts, images, or other assets that 
    will be loaded from your piece.
 2. Create a `package.json` application manifest similar to this:
 ```
@@ -114,7 +108,6 @@ pieces, see Poustinia-v5c.
 ```
 /Applications/nwjs.app/Contents/MacOS/nwjs /Users/michaelgogins/cloud-5/strudel/website/dist
 ```
-
 
 ## Building `csound.node`
 
@@ -150,13 +143,9 @@ cmake-js rebuild
 
 ## Release Notes
 
-### [v0.3.2](https://github.com/gogins/csound-wasm/commits/v0.3.2)
+### [v0.2.0]
 
- - Updated Csound to version 6.19.0.
+ - Improved documentation on installing NW.js.
 
- - Improved the WebAssembly builds of Csound and CsoundAC to support 
-   running either in NW.js with native Csound, or in Web browsers with 
-   Csound for WebAssembly. This makes it possible, e.g., to compose pieces 
-   using Strudel with native Csound, VST plugins, access to the local 
-   filesystem, and so on.
+ - Simplified example manifest.
 
