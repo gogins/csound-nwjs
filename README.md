@@ -92,31 +92,34 @@ pieces, see Poustinia-v5c.
 2. Create a `package.json` application manifest similar to this:
 ```
 {
-  "name": "MyPiece",
   "main": "MyPiece.html",
+  "name": "MyPiece",
+  "description": "HTML5 with Csound",
   "version": "0.1.0",
   "keywords": [ "Csound", "node-webkit" ],
   "window": {
-    "toolbar": false,
-    "frame": false,
+    "title": "MyPiece",
+    "icon": "link.png",
+    "toolbar": true,
+    "frame": true,
     "maximized": true,
     "position": "mouse",
     "fullscreen": true
-  }
+  },
+   "chromium-args": "--enable-logging=stderr --v=1 --device-scale-factor=2 --allow-running-insecure-content"
 }
 ```
-4. Run `pnpm add nw-builder -D` to install nwbuild.
-5. To create a temporary build and play or debug your piece, run 
-   `pnpm nwbuild --glob=false --mode=run --version=latest --flavor=sdk .` 
-   to both install NW.js (in the `cache`` subdirectory) and run the composition app.
-6. To build your piece as a standalone application that can be installed, run
-   `pnpm nwbuild --glob=false --mode=build --version=latest --flavor=sdk --outDir=../build .`
-7. You can then play your piece at any time with `open ../build/MyPiece.app`.
+ 3. Run NW.js with one argument containing the path of your app directory, 
+    i.e. the directory that contains `package.json`, e.g. on macOS:
+```
+/Applications/nwjs.app/Contents/MacOS/nwjs /Users/michaelgogins/cloud-5/strudel/website/dist
+```
+
 
 ## Building `csound.node`
 
-csound-nwjs is built in the "npm way" but uses cmake.js rather than 
-node-gyp to compile the addon.
+csound-nwjs is built in the "npm way," but uses cmake.js rather than node-gyp 
+to compile the addon.
 
 1. Make a local clone of this repository.
 
