@@ -4,7 +4,7 @@ cmake_policy(SET CMP0042 NEW)
 message(STATUS "CMAKE_HOST_SYSTEM_NAME:  ${CMAKE_HOST_SYSTEM_NAME}")
 
 set(CMAKE_CXX_STANDARD 17)
-set(CMAKE_OSX_ARCHITECTURES "arm64;x86_64" CACHE STRING "" FORCE)
+set(CMAKE_OSX_ARCHITECTURES "arm64" CACHE STRING "" FORCE)
 
 project (csound)
 
@@ -41,6 +41,10 @@ target_include_directories(${PROJECT_NAME} PRIVATE
   /opt/homebrew/Cellar/bdw-gc/8.0.6/include/' 
   /Users/michaelgogins/csound-ac/CsoundAC/ 
   )
+target_compile_definitions(${PROJECT_NAME} PRIVATE 
+  NAPI_VERSION=4
+  CSOUND_VERSION_MAJOR=7
+)
 endif()
 
 if(CMAKE_HOST_SYSTEM_NAME STREQUAL "Linux")

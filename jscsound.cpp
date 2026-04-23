@@ -51,31 +51,75 @@ static void csoundMessageCallback_(CSOUND *csound__, int attr, const char *forma
     message_(buffer);
 }
 
+#if CSOUND_VERSION_MAJOR >= 7
+static int compile_csd_filename_(const char *csd)
+{
+    return csoundCompileCSD(csound_.GetCsound(), csd, 0, 0);
+}
+
+static int compile_csd_text_(const char *csd)
+{
+    return csoundCompileCSD(csound_.GetCsound(), csd, 1, 0);
+}
+
+static int compile_orc_(const char *orc)
+{
+    return csoundCompileOrc(csound_.GetCsound(), orc, 0);
+}
+
+static int cleanup_()
+{
+    csound_.Reset();
+    return 0;
+}
+#else
+static int compile_csd_filename_(const char *csd)
+{
+    return csound_.CompileCsd(csd);
+}
+
+static int compile_csd_text_(const char *csd)
+{
+    return csound_.CompileCsdText(csd);
+}
+
+static int compile_orc_(const char *orc)
+{
+    return csound_.CompileOrc(orc);
+}
+
+static int cleanup_()
+{
+    return csound_.Cleanup();
+}
+#endif
+
+
 Napi::Number Cleanup(const Napi::CallbackInfo &info) {
     message_("Info: jscsound: Cleanup.\n");
     Napi::Env env = info.Env();
-    int result = csound_.Cleanup();
+    int result = cleanup_();
     return Napi::Number::New(env, result);
 }
 
 Napi::Number CompileCsd(const Napi::CallbackInfo &info) {
     Napi::Env env = info.Env();
     std::string csd = info[0].As<Napi::String>().Utf8Value();
-    int result = csound_.CompileCsd(csd.c_str());
+    int result = compile_csd_filename_(csd.c_str());
     return Napi::Number::New(env, result);
 }
 
 Napi::Number CompileCsdText(const Napi::CallbackInfo &info) {
     Napi::Env env = info.Env();
     std::string csd = info[0].As<Napi::String>().Utf8Value();
-    int result = csound_.CompileCsdText(csd.c_str());
+    int result = compile_csd_text_(csd.c_str());
     return Napi::Number::New(env, result);
 }
 
 Napi::Number CompileOrc(const Napi::CallbackInfo &info) {
     Napi::Env env = info.Env();
     std::string csd = info[0].As<Napi::String>().Utf8Value();
-    int result = csound_.CompileOrc(csd.c_str());
+    int result = compile_orc_(csd.c_str());
     return Napi::Number::New(env, result);
 }
 
@@ -170,8 +214,17 @@ Napi::Number KillInstance(const Napi::CallbackInfo &info) {
     std::string instr_name = info[1].As<Napi::String>().Utf8Value();
     int mode = info[2].As<Napi::Number>().Int32Value();
     int allow_release = info[3].As<Napi::Number>().Int32Value();
+    int result = -1;
+#if CSOUND_VERSION_MAJOR >= 7
+    message_("Warning: jscsound: KillInstance is not supported in Csound 7; use score or orchestra events instead.\n");
+    (void) instr;
+    (void) instr_name;
+    (void) mode;
+    (void) allow_release;
+#else
     auto csound = csound_.GetCsound();
-    int result = csoundKillInstance(csound, instr, const_cast<char *>(instr_name.c_str()), mode, allow_release);
+    result = csoundKillInstance(csound, instr, const_cast<char *>(instr_name.c_str()), mode, allow_release);
+#endif
     return Napi::Number::New(env, result);
 }
 
