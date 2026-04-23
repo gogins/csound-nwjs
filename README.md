@@ -71,10 +71,10 @@ A composition that uses csound.node is a regular NW.js application. This is
 rather different from a typical desktop application. 
 
 Install the SDK version of NW.js from [here](https://nwjs.io/). On macOS, you 
-will need to configure the app to pass the Gatekeeper. Open a terminal and 
-execute: 
+will need to configure the app to pass the Gatekeeper. Open a terminal, change 
+to the directory containing nwjs.app, and execute: 
 
-`xattr -dr com.apple.quarantine /Applications/nwjs.app`.
+`xattr -dr com.apple.quarantine nwjs.app`.
 
 For a sample NW.js composition that you can use as a template for your own 
 pieces, see Poustinia-v5c.
@@ -116,8 +116,8 @@ to compile the addon.
 
 1. Make a local clone of this repository.
 
-2. Install Csound from `https://csound.com/download.html`. On Linux, it is 
-   easy to build Csound from source code.
+2. Install Csound from `https://csound.com/download.html`. On Linux and macOS, 
+   it is easy to build Csound from source code.
 
 3. Install npm.
 
@@ -142,6 +142,10 @@ cmake-js rebuild
 ```
 
 ## Release Notes
+
+### [v1.0.0-beta]
+
+ - Ported to Csound version 7.
 
 ### [v0.2.0]
 

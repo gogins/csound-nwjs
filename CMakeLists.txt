@@ -8,9 +8,19 @@ set(CMAKE_OSX_ARCHITECTURES "arm64;x86_64" CACHE STRING "" FORCE)
 
 project (csound)
 
+#
+# Find Csound version.
+#
+include("$ENV{HOME}/cmake/FindCsoundHomeFirst.cmake")
+
 add_definitions(-DNAPI_VERSION=4)
 
 include_directories(${CMAKE_JS_INC})
+
+file(DOWNLOAD
+    "https://raw.githubusercontent.com/gogins/csound-ac/master/CsoundAC/csound_threaded.hpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/csound_threaded.hpp"
+)
 
 file(GLOB SOURCE_FILES "*.cpp")
 
@@ -20,12 +30,12 @@ set_target_properties(${PROJECT_NAME} PROPERTIES PREFIX "" SUFFIX ".node")
 if (APPLE)
 message(STATUS "Building for macOS.")
 target_link_libraries(${PROJECT_NAME} ${CMAKE_JS_LIB}  
-  /library/Frameworks/CsoundLib64.framework/Versions/6.0/CsoundLib64 
+  /Library/Frameworks/CsoundLib64.framework/Versions/7.0/CsoundLib64 
   pthread
   )
 target_include_directories(${PROJECT_NAME} PRIVATE 
   /opt/homebrew/lib/node_modules/node-addon-api/ 
-  /Library/Frameworks/CsoundLib64.framework/Versions/6.0/Headers 
+  /Library/Frameworks/CsoundLib64.framework/Versions/7.0/Headers 
   /opt/homebrew/Cellar/ecl/21.2.1_1/include/ 
   /opt/homebrew/Cellar/gmp/6.2.1_1/include/ 
   /opt/homebrew/Cellar/bdw-gc/8.0.6/include/' 
