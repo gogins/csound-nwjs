@@ -1,0 +1,17 @@
+{
+  "main": "player.html",
+  "name": "Csound Player",
+  "description": "HTML5 with Csound in NW.js",
+  "version": "1.0.0",
+  "keywords": [ "Csound", "node-webkit" ],
+  "window": {
+    "title": "Csound Player",
+    "icon": "link.png",
+    "toolbar": true,
+    "frame": true,
+    "maximized": true,
+    "position": "mouse",
+    "fullscreen": true
+  },
+   "chromium-args": "--enable-logging=stderr --v=1 --device-scale-factor=2 --allow-running-insecure-content"
+}
