@@ -292,7 +292,7 @@ e
             csound_message_callback("Score time: " + seconds + "\n");
             if (seconds > 0) {
                 csound_message_callback("Already playing...\n");
-                return;
+                /// return;
             }
             csd = csd_editor.getValue();
             console_editor.setValue("");
