@@ -1,0 +1,252 @@
+# Build csound.node on GitHub-hosted runners (same ingredients as ./rebuild.bash locally:
+# Csound 7, csound-ac + libCsoundAC, native/ npm deps for cmake-js + node-addon-api).
+
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CSOUND_INSTALL_PREFIX: ${{ github.workspace }}/.cache/csound-install
+  CSOUND_CACHE_VERSION: csound7-v2
+
+jobs:
+  build:
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Linux
+            os_name: linux
+            runner: ubuntu-latest
+            csound_ac_build_dir: build-linux
+          - name: macOS
+            os_name: macos
+            runner: macos-latest
+            csound_ac_build_dir: build-macos
+
+    steps:
+      - name: Checkout csound-nwjs
+        uses: actions/checkout@v4
+        with:
+          path: csound-nwjs
+
+      - name: Checkout csound-ac
+        uses: actions/checkout@v4
+        with:
+          repository: gogins-dev/csound-ac
+          path: csound-ac
+          submodules: recursive
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: csound-nwjs/native/package-lock.json
+
+      - name: Install dependencies (Linux)
+        if: matrix.os_name == 'linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential cmake ninja-build pkg-config swig \
+            libboost-all-dev libeigen3-dev libsndfile1-dev \
+            libasound2-dev libjack-jackd2-dev libpulse-dev \
+            portaudio19-dev libportaudio2 liblo-dev libffi-dev \
+            libcurl4-openssl-dev bison flex doxygen graphviz ccache
+
+      - name: Install dependencies (macOS)
+        if: matrix.os_name == 'macos'
+        run: |
+          brew update
+          brew install cmake ninja swig boost eigen libsndfile portaudio \
+            bison flex doxygen graphviz python@3.12 ccache
+          echo "$(brew --prefix bison)/bin" >> "$GITHUB_PATH"
+          echo "$(brew --prefix flex)/bin" >> "$GITHUB_PATH"
+
+      - name: Cache ccache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.ccache
+            ~/Library/Caches/ccache
+          key: ${{ runner.os }}-ccache-csound-nwjs-${{ hashFiles('csound-nwjs/**/*.cpp', 'csound-nwjs/CMakeLists.txt', 'csound-ac/**/*.cpp', 'csound-ac/**/CMakeLists.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-ccache-csound-nwjs-
+
+      - name: Restore Csound install cache
+        id: cache-csound
+        uses: actions/cache/restore@v4
+        with:
+          path: .cache/csound-install
+          key: ${{ runner.os }}-${{ env.CSOUND_CACHE_VERSION }}-${{ github.run_id }}
+          restore-keys: |
+            ${{ runner.os }}-${{ env.CSOUND_CACHE_VERSION }}-
+
+      - name: Validate Csound cache (Linux)
+        if: matrix.os_name == 'linux'
+        id: validate-csound-linux
+        run: |
+          P="${CSOUND_INSTALL_PREFIX}"
+          ok=0
+          if [[ -x "${P}/bin/csound" ]] && { [[ -f "${P}/lib/libcsound64.so" ]] || [[ -f "${P}/lib64/libcsound64.so" ]]; }; then
+            ok=1
+          fi
+          echo "valid=${ok}" >> "$GITHUB_OUTPUT"
+          if [[ "${ok}" -eq 1 ]]; then
+            "${P}/bin/csound" --version
+          else
+            rm -rf "${P}"
+          fi
+
+      - name: Validate Csound cache (macOS)
+        if: matrix.os_name == 'macos'
+        id: validate-csound-macos
+        run: |
+          P="${CSOUND_INSTALL_PREFIX}"
+          ok=0
+          if [[ -x "${P}/bin/csound" ]]; then
+            if [[ -f "${P}/Library/Frameworks/CsoundLib64.framework/CsoundLib64" ]] \
+              || [[ -f "${P}/lib/libcsound64.dylib" ]] || [[ -f "${P}/lib64/libcsound64.dylib" ]]; then
+              ok=1
+            fi
+          fi
+          echo "valid=${ok}" >> "$GITHUB_OUTPUT"
+          if [[ "${ok}" -eq 1 ]]; then
+            "${P}/bin/csound" --version
+          else
+            rm -rf "${P}"
+          fi
+
+      - name: Add Csound prefix to PATH and library search (Linux)
+        if: matrix.os_name == 'linux'
+        run: |
+          echo "${CSOUND_INSTALL_PREFIX}/bin" >> "$GITHUB_PATH"
+          echo "LD_LIBRARY_PATH=${CSOUND_INSTALL_PREFIX}/lib:${CSOUND_INSTALL_PREFIX}/lib64:${LD_LIBRARY_PATH}" >> "$GITHUB_ENV"
+          echo "CSOUND_ROOT=${CSOUND_INSTALL_PREFIX}" >> "$GITHUB_ENV"
+
+      - name: Add Csound prefix to PATH and library search (macOS)
+        if: matrix.os_name == 'macos'
+        run: |
+          echo "${CSOUND_INSTALL_PREFIX}/bin" >> "$GITHUB_PATH"
+          FW="${CSOUND_INSTALL_PREFIX}/Library/Frameworks"
+          echo "DYLD_LIBRARY_PATH=${CSOUND_INSTALL_PREFIX}/lib:${CSOUND_INSTALL_PREFIX}/lib64:${DYLD_LIBRARY_PATH}" >> "$GITHUB_ENV"
+          echo "CMAKE_FRAMEWORK_PATH=${FW}:${HOME}/Library/Frameworks:/Library/Frameworks:${CMAKE_FRAMEWORK_PATH}" >> "$GITHUB_ENV"
+          echo "CSOUND_ROOT=${CSOUND_INSTALL_PREFIX}" >> "$GITHUB_ENV"
+
+      - name: Build and install Csound 7 (Linux)
+        if: matrix.os_name == 'linux' && steps.validate-csound-linux.outputs.valid != '1'
+        run: |
+          git clone --depth 1 https://github.com/csound/csound.git
+          cmake -S csound -B csound/build -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DBUILD_TESTS=OFF \
+            -DBUILD_JAVA_INTERFACE=OFF \
+            -DBUILD_PYTHON_INTERFACE=OFF \
+            -DINSTALL_PYTHON_INTERFACE=OFF \
+            -DBUILD_PYTHON_OPCODES=OFF \
+            -DUSE_PYTHON=OFF \
+            -DCMAKE_INSTALL_PREFIX="${CSOUND_INSTALL_PREFIX}" \
+            -DCMAKE_C_COMPILER_LAUNCHER=ccache \
+            -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
+          cmake --build csound/build --parallel
+          cmake --install csound/build
+          echo "${CSOUND_INSTALL_PREFIX}/lib" | sudo tee /etc/ld.so.conf.d/csound.conf
+          echo "${CSOUND_INSTALL_PREFIX}/lib64" | sudo tee -a /etc/ld.so.conf.d/csound.conf
+          sudo ldconfig
+
+      - name: Build and install Csound 7 (macOS)
+        if: matrix.os_name == 'macos' && steps.validate-csound-macos.outputs.valid != '1'
+        run: |
+          git clone --depth 1 https://github.com/csound/csound.git
+          BISON_EXECUTABLE="$(brew --prefix bison)/bin/bison"
+          FLEX_EXECUTABLE="$(brew --prefix flex)/bin/flex"
+          cmake -S csound -B csound/build -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DBISON_EXECUTABLE="$BISON_EXECUTABLE" \
+            -DFLEX_EXECUTABLE="$FLEX_EXECUTABLE" \
+            -DBUILD_TESTS=OFF \
+            -DBUILD_JAVA_INTERFACE=OFF \
+            -DBUILD_PYTHON_INTERFACE=OFF \
+            -DCMAKE_INSTALL_PREFIX="${CSOUND_INSTALL_PREFIX}" \
+            -DCMAKE_C_COMPILER_LAUNCHER=ccache \
+            -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
+          cmake --build csound/build --parallel
+          cmake --install csound/build
+
+      - name: Save Csound install cache
+        if: (matrix.os_name == 'linux' && steps.validate-csound-linux.outputs.valid != '1') || (matrix.os_name == 'macos' && steps.validate-csound-macos.outputs.valid != '1')
+        uses: actions/cache/save@v4
+        with:
+          path: .cache/csound-install
+          key: ${{ runner.os }}-${{ env.CSOUND_CACHE_VERSION }}-${{ github.run_id }}
+
+      - name: Configure csound-ac
+        run: |
+          PY="$(python -c 'import sys; print(sys.executable)')"
+          if [[ "${{ matrix.os_name }}" == "linux" ]]; then
+            cmake -S csound-ac -B "csound-ac/${{ matrix.csound_ac_build_dir }}" -G Ninja \
+              -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+              -DCMAKE_POLICY_VERSION_MINIMUM=3.5 \
+              -DGENERATE_DOCUMENTATION=OFF \
+              -DCMAKE_PREFIX_PATH="${CSOUND_INSTALL_PREFIX};/usr/local;/usr" \
+              -DCSOUND_ROOT_HINT="${CSOUND_INSTALL_PREFIX}" \
+              -DCSOUND_EXECUTABLE="${CSOUND_INSTALL_PREFIX}/bin/csound" \
+              -DPython3_EXECUTABLE="${PY}" \
+              -DCSOUND_AC_INSTALL_PYTHON_TO_SITEARCH=OFF \
+              -DCMAKE_C_COMPILER_LAUNCHER=ccache \
+              -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
+          else
+            cmake -S csound-ac -B "csound-ac/${{ matrix.csound_ac_build_dir }}" -G Ninja \
+              -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+              -DCMAKE_POLICY_VERSION_MINIMUM=3.5 \
+              -DGENERATE_DOCUMENTATION=OFF \
+              -DCMAKE_PREFIX_PATH="${CSOUND_INSTALL_PREFIX};${HOME}/Library/Frameworks;/Library/Frameworks;/opt/homebrew;/usr/local;/usr" \
+              -DCSOUND_ROOT_HINT="${CSOUND_INSTALL_PREFIX}" \
+              -DCSOUND_EXECUTABLE="${CSOUND_INSTALL_PREFIX}/bin/csound" \
+              -DPython3_EXECUTABLE="${PY}" \
+              -DCSOUND_AC_INSTALL_PYTHON_TO_SITEARCH=OFF \
+              -DCMAKE_C_COMPILER_LAUNCHER=ccache \
+              -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
+          fi
+
+      - name: Build libCsoundAC
+        run: cmake --build "csound-ac/${{ matrix.csound_ac_build_dir }}" --target libCsoundAC --parallel
+
+      - name: npm ci (cmake-js, node-addon-api)
+        working-directory: csound-nwjs/native
+        run: npm ci
+
+      - name: Add native node_modules/.bin to PATH
+        run: echo "${GITHUB_WORKSPACE}/csound-nwjs/native/node_modules/.bin" >> "$GITHUB_PATH"
+
+      - name: Build csound.node
+        working-directory: csound-nwjs
+        env:
+          CSOUND_AC_ROOT: ${{ github.workspace }}/csound-ac
+        run: ./rebuild.bash
+
+      - name: Upload csound.node
+        uses: actions/upload-artifact@v4
+        with:
+          name: csound-node-${{ matrix.os_name }}
+          path: csound-nwjs/build/Release/csound.node
+          if-no-files-found: error
