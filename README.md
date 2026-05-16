@@ -1,4 +1,4 @@
-# csound.node
+# csound-nwjs
 ![GitHub All Releases (total)](https://img.shields.io/github/downloads/gogins/csound-nwjs/total.svg)<br>
 
 Michael Gogins<br>
@@ -134,12 +134,14 @@ change this to suit your environment.
 NODE_PATH=/usr/local/lib
 ```
 
-7. CMakeLists.txt is configured for building on macOS. You will need to 
-   change the library and include directories configuration to suit your 
-   own environment. To actually build execute:
-```
-cmake-js rebuild
-```
+7. Execute the `rebuild.bash` script.
+
+## Testing
+
+To validate your installation or build, run some of the pieces in the [cloud-5]
+(https://github.com/gogins/cloud-5) 
+repository. The [csound_player.html] page has few dependencies; if it works, 
+then csound-nwjs is probably fine. 
 
 ## Release Notes
 
