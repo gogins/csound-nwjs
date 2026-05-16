@@ -1,0 +1,10 @@
+{
+  "name": "csound-nwjs-native-build",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Dev dependencies for building csound.node with cmake-js against NW.js (separate from the NW.js app package.json).",
+  "devDependencies": {
+    "cmake-js": "^7.3.0",
+    "node-addon-api": "^8.3.0"
+  }
+}
