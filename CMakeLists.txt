@@ -19,9 +19,9 @@ set(CSOUND_NWJS_SOURCE_DIR
 message(STATUS "CMAKE_HOST_SYSTEM_NAME: ${CMAKE_HOST_SYSTEM_NAME}")
 
 # -----------------------------------------------------------------------------
-# Refresh FindCsoundHomeFirst.cmake from csound-ac (same URLs as csound-vst3)
+# Refresh FindCsoundHomeFirst.cmake from csound-ac
 # -----------------------------------------------------------------------------
-message(STATUS "Refreshing FindCsoundHomeFirst.cmake from csound-ac (csound_threaded.hpp is fetched at build time)...")
+message(STATUS "Refreshing FindCsoundHomeFirst.cmake from csound-ac (csound_threaded.hpp is downloaded from GitHub head at build time)...")
 
 file(MAKE_DIRECTORY "${CSOUND_NWJS_SOURCE_DIR}/cmake")
 
@@ -216,14 +216,15 @@ file(GLOB SOURCE_FILES CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/*.cpp")
 add_library(${PROJECT_NAME} SHARED ${SOURCE_FILES} ${_cmake_js_src})
 set_target_properties(${PROJECT_NAME} PROPERTIES PREFIX "" SUFFIX ".node")
 
-# csound-ac CsoundAC/csound_threaded.hpp: build-time fetch (same pattern as csound-vst3). This directory is
-# listed before CSOUND_AC_INCLUDE_DIR / CSOUND includes so it wins over any installed csound_threaded.hpp.
-set(CSOUND_NWJS_CSOUND_THREADED_INCLUDE_DIR "${CMAKE_BINARY_DIR}/csound-ac-include")
-file(MAKE_DIRECTORY "${CSOUND_NWJS_CSOUND_THREADED_INCLUDE_DIR}")
+# csound-ac CsoundAC/csound_threaded.hpp: always download from GitHub head
+# into the source-tree copy before compiling. This source directory is listed
+# before CSOUND_AC_INCLUDE_DIR / CSOUND includes so the refreshed file wins over
+# any installed csound_threaded.hpp.
+set(CSOUND_NWJS_CSOUND_THREADED_INCLUDE_DIR "${CSOUND_NWJS_SOURCE_DIR}")
 set(CSOUND_AC_CSOUND_THREADED_URL
     "https://raw.githubusercontent.com/gogins-dev/csound-ac/refs/heads/master/CsoundAC/csound_threaded.hpp"
 )
-set(CSOUND_AC_CSOUND_THREADED_DST "${CSOUND_NWJS_CSOUND_THREADED_INCLUDE_DIR}/csound_threaded.hpp")
+set(CSOUND_AC_CSOUND_THREADED_DST "${CSOUND_NWJS_SOURCE_DIR}/csound_threaded.hpp")
 # Single -D arguments avoid Ninja/VERBATIM edge cases with empty URL for cmake -P.
 string(CONCAT _csound_threaded_url_arg "-DURL=" "${CSOUND_AC_CSOUND_THREADED_URL}")
 string(CONCAT _csound_threaded_dst_arg "-DDST=" "${CSOUND_AC_CSOUND_THREADED_DST}")
@@ -231,7 +232,7 @@ add_custom_target(
   csound_ac_fetch_csound_threaded
   COMMAND "${CMAKE_COMMAND}" "${_csound_threaded_url_arg}" "${_csound_threaded_dst_arg}"
           -P "${CSOUND_NWJS_SOURCE_DIR}/cmake/FetchCsoundACCsoundThreaded.cmake"
-  COMMENT "Download csound-ac CsoundAC/csound_threaded.hpp"
+  COMMENT "Download csound-ac CsoundAC/csound_threaded.hpp from GitHub head"
   VERBATIM
 )
 add_dependencies(${PROJECT_NAME} csound_ac_fetch_csound_threaded)
